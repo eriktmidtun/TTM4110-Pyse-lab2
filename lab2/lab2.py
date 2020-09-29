@@ -82,14 +82,15 @@ def Runaway(env):
         yield env.timeout(delay) """
 
 
-gen = PlaneGen(env)
+""" gen = PlaneGen(env)
 env.process(gen)
 #start two runaway processes?
-env.run(until=SIM_TIME)
+env.run(until=SIM_TIME) """
 
 def calculate_std_dev(results, minTime, maxTime):
     population = []
     for i in range(len(results)):
+        print(results[1][i])
         if results[1][i] <= maxTime:
             break
         elif results[1][i] >= minTime:
@@ -106,31 +107,30 @@ def calculate_mean(results, minTime, maxTime):
     return statistics.mean(population)
 
 def calculate_intervals(results, length):
-    number_of_bins = 24/length
-    mean_bins = [[], []]
-    stdev_bins = [[], []]
-    less_mean_bins = [[], []]
-    more_mean_bins = [[], []]
+    number_of_bins = round(24/length)
+    mean_bins = []
+    stdev_bins = []
     for i in range(number_of_bins):
-        stdev = calculate_std_dev(results, i*number_of_bins, (i+1)*number_of_bins)
-        stdev_bins[0].append(stdev)
-        stdev_bins[1].append(i*number_of_bins)
-        mean = calculate_mean(results, i*number_of_bins, (i+1)*number_of_bins)
-        mean_bins[0].append(mean)
-        mean_bins[1].append(i*number_of_bins)
-    less_mean_bins[0] = numpy.array()
-    return 0
+        stdev_bins.append(calculate_std_dev(results, i*number_of_bins, (i+1)*number_of_bins))
+        mean_bins.append(calculate_mean(results, i*number_of_bins, (i+1)*number_of_bins))
+    less_mean_bins = numpy.array(mean_bins) - numpy.array(stdev_bins)
+    more_mean_bins = numpy.array(mean_bins) + numpy.array(stdev_bins)
+    return mean_bins, less_mean_bins, more_mean_bins
     
 def run_simulation(number):
-    results = [[]*number, []*number]
+    results = [[], []]
     for i in range(number):
         interarrival_times = []
         arrival_times = []
         gen = PlaneGen(env)
         env.process(gen)
         env.run(until=SIM_TIME)
-        results[0][i] = interarrival_times
-        results[1][i] = arrival_times
+        results[0].append(interarrival_times)
+        results[1].append(arrival_times)
+    mean_bins, less_mean_bins, more_mean_bins = calculate_intervals(results, 0.5)
+    print(mean_bins)
+    print(less_mean_bins)
+    print(more_mean_bins)
     return 0
         
 
@@ -141,13 +141,12 @@ plt.ylabel("Delay [s]")
 plt.show() """
 
 #print(interarrival_times)
-printplot(60, max(interarrival_times)+50, interarrival_times, "Interarrival Time [s]", "Hour", arrival_times, SIM_TIME/3600)
-""" print("Mean:", numpy.mean(duration_of_successful_calls))
-print("Number of missed calls:",calls["Failures"], "Probability of failure:", 100*calls["Failures"]/calls["Number"],"%") """
-
+#printplot(60, max(interarrival_times)+50, interarrival_times, "Interarrival Time [s]", "Hour", arrival_times, SIM_TIME/3600)
+run_simulation(1)
 
 """
 Spørsmål:
 
 
 """
+
