@@ -1,0 +1,4 @@
+matplotlib==3.3.2
+numpy==1.19.2
+pylint==2.4.4
+simpy==4.0.1
