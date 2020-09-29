@@ -1,0 +1,28 @@
+begin 
+    external class demos;
+    demos
+    begin
+        ...
+        entity class Parent;
+        begin 
+            ref(Child) child_;
+            ...
+            child_ :- new Child("child, this Parent);
+            child_.shedule(0.0);
+            ...
+            child_interrupt(1);
+            ...
+        end;
+
+        entity class Child(p_);ref(Parent) p_;
+        begin 
+            hold(some_time);
+            if interrupted = 1 then
+                !this child has been interrupted
+                ...
+            ...
+            p_interrupt(1);
+            ...
+        end;
+    end;
+end;

@@ -1,0 +1,88 @@
+BEGIN
+    EXTERNAL CLASS DEMOS = "demos.atr";
+    DEMOS BEGIN
+
+        REF(RDist) packet_dist, service_time;
+        REF(BDist) load_balance;
+        REAL trans_del, discard_time;
+        REF(WaitQ) r1, r2, r3;
+        
+        REF(Count) sent_packets, recv_packets, lost_packets;
+        REF(Tally) delay_time;
+        
+
+        ENTITY CLASS PacketGen;
+        BEGIN
+            LOOP:
+                NEW Packet("p").schedule(now);
+                sent_packets.update(1);
+                hold(packet_dist.sample);
+            REPEAT;
+        END;
+
+        ENTITY CLASS Packet;
+        BEGIN
+            BOOLEAN not_discard;
+            LONG REAL ts;
+
+            not_discard := true;
+            ts := time;
+
+            if load_balance.sample then r1.wait
+            else r2.wait;
+
+            if not_discard then BEGIN
+                hold(trans_del);
+                r3.wait;
+
+                if not_discard then BEGIN
+                    recv_packets.update(1);    
+                    delay_time.update(time - ts);
+                END
+            END;
+        END;
+
+        ENTITY CLASS Router(waitq_);
+        REF(WaitQ) waitq_;
+        BEGIN
+            REF(Packet) pakka;
+
+            LOOP:
+                pakka :- waitq_.coopt;
+                
+                if time > (pakka.ts + discard_time) then BEGIN
+                    pakka.not_discard := false;
+                    lost_packets.update(1);
+                END
+                ELSE BEGIN
+                    hold(service_time.sample);
+                END;
+                pakka.schedule(now);
+            REPEAT;
+        END;
+
+        sent_packets :- NEW Count("sent");
+        recv_packets :- NEW Count("recv");
+        lost_packets :- NEW Count("lost");
+        delay_time :- NEW Tally("delay");
+        
+        trans_del := 0.2;
+        discard_time := 3;
+
+        packet_dist :- NEW NegExp("packetdist", 2);
+        service_time :- NEW Erlang("servicetime", 1.0/3.0, 3.0);
+        load_balance :- NEW Draw("load balance", 1/2);
+
+        r1 :- NEW WaitQ("r1");
+        r2 :- NEW WaitQ("r2");
+        r3 :- NEW WaitQ("r3");
+        
+        NEW PacketGen("the real g").schedule(0.0);
+        
+        NEW Router("r1", r1).schedule(0.0);
+        NEW Router("r2", r2).schedule(0.0);
+        NEW Router("r3", r3).schedule(0.0);
+
+        hold(300.0);
+    END;
+END;

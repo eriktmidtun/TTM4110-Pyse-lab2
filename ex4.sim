@@ -1,0 +1,47 @@
+begin 
+    external class demos = "./demos.sim";
+    demos
+    begin
+        real NEXT_CALL, MAX_CONNECTION_TIME, FIXED_CONNECTION_TIME, DISCONNECTION_TIME;
+        real AVG_VARIABLE_CONNECTION_TIME, AVG_CONVERSATION_TIME;
+
+
+        Entity class Subscriber;
+        begin
+        loop:
+            ref(Timer) timer_;
+
+            Hold(NEXT_CALL);
+            timer_ :- new Timer("timer", this Subscriber);
+            timer_.shedule(0.0);
+            Hold(FIXED_CONNECTION_TIME + AVG_VARIABLE_CONNECTION_TIME);
+            if interrupted = 1 then
+                timer_.interrupt(1);
+                Hold(AVG_CONVERSATION_TIME);
+            Hold(DISCONNECTION_TIME);
+            repeat;
+        end;
+
+        Entity class Timer(subscriber_); ref(Subscriber) subscriber_;
+        begin 
+            Hold(MAX_CONNECTION_TIME);
+            if interrupted = 1 then
+                subscriber_.interrupt(1)
+        end;
+
+        NEXT_CALL := 30 min
+        MAX_CONNECTION_TIME := 15 s
+        FIXED_CONNECTION_TIME := 200 ms
+        DISCONNECTION_TIME := 200 ms 
+        AVG_VARIABLE_CONNECTION_TIME := 3 s
+        AVG_CONVERSATION_TIME := 3 min
+
+        SIMTIME := 30 days
+
+        subscriber_:- new Subscriber("subscriber");
+        subscriber_.schedule(0.0);
+
+        Hold(SIMTIME)
+
+    end;
+end;
