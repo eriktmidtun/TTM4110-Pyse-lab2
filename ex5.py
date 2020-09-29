@@ -38,7 +38,7 @@ class Packet(object):
             wait for r3
         
 
-class Router(object):
+""" class Router(object):
     def __init__(self, env):
         self.env = env
         self.action = env.process(self.run())
@@ -48,7 +48,7 @@ class Router(object):
             if packet.time > timestamp + MAX_DELAY:
                 packet.ttl = False
             else:
-                yield self.env.timeout(random.gammavariate(3, 1))
+                yield self.env.timeout(random.gammavariate(3, 1)) """
 
         
 router1 = Router(env) # maybe use store? or sleep until woken up?

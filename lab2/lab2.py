@@ -2,6 +2,7 @@ import simpy as sim
 import numpy
 import random
 import datetime
+import statistics
 from matplotlib import pyplot as plt
 
 env = sim.Environment()
@@ -40,36 +41,103 @@ def getClockCurrentDay(currenttime):
 
 def PlaneGen(env):
     plane = 0
-    X_delay_expected = -10
+    X_delay_expected = 0
     while True:
         clock = getClockCurrentDay(env.now)
         if clock < 5:
-            X_delay_expected += 10
-            interarrival_times.append(60)
+            #X_delay_expected += 10
+            interarrival_times.append(T_guard) #fix points on the end of day
             arrival_times.append(env.now / 3600)
             yield env.timeout(5*sInAnHour-clock*sInAnHour) # wait til 05:00
-            interarrival_times.append(60)
+            #fix points on the start of day
+            interarrival_times.append(T_guard)
             arrival_times.append(env.now / 3600)
         plane += 1
         #print("Plane %i arrived at %s" % (plane, datetime.timedelta(seconds = env.now)))
         #Plane(env)
         delayed = random.uniform(0.0,1.0)
-        delay = random.gammavariate(3.0, X_delay_expected) if delayed > P_delay and X_delay_expected > 0 else 0 #must check if gammavariate actually is erlang
+        delay = random.gammavariate(3.0, X_delay_expected) if delayed > P_delay and X_delay_expected > 0 else 0
         planeArrivalTime = max(numpy.random.exponential(getCurrentArrivalIntensity(env.now)),T_guard) + delay
         interarrival_times.append(round(planeArrivalTime, 1))
         arrival_times.append(env.now / 3600)
         yield env.timeout(int(planeArrivalTime))
-        
-        
+
+
+""" plane_info = [] #landed time, takeoff time
+def Plane(env,delay ):
+    # delay handled in generator
+    # wait for landing
+    # print landed time
+    # wait for turn around erlang(7, expected = 45*60)
+    # request takeoff
+    # take-off finished
+    # print all variables
+
+# info = {'arrival': 0}
+
+def Runaway(env):
+    while True:
+        # priority queue and wait for next plane. Takeoff #1 pri
+        # hold for T_landing or T_takeoff
+        yield env.timeout(delay) """
+
 
 gen = PlaneGen(env)
 env.process(gen)
+#start two runaway processes?
 env.run(until=SIM_TIME)
+
+def calculate_std_dev(results, minTime, maxTime):
+    population = []
+    for i in range(len(results)):
+        if results[1][i] <= maxTime:
+            break
+        elif results[1][i] >= minTime:
+            population.append(results[0][i])
+    return statistics.pstdev(population)
+
+def calculate_mean(results, minTime, maxTime):
+    population = []
+    for i in range(len(results)):
+        if results[1][i] <= maxTime:
+            break
+        elif results[1][i] >= minTime:
+            population.append(results[0][i])
+    return statistics.mean(population)
+
+def calculate_intervals(results, length):
+    number_of_bins = 24/length
+    mean_bins = [[], []]
+    stdev_bins = [[], []]
+    less_mean_bins = [[], []]
+    more_mean_bins = [[], []]
+    for i in range(number_of_bins):
+        stdev = calculate_std_dev(results, i*number_of_bins, (i+1)*number_of_bins)
+        stdev_bins[0].append(stdev)
+        stdev_bins[1].append(i*number_of_bins)
+        mean = calculate_mean(results, i*number_of_bins, (i+1)*number_of_bins)
+        mean_bins[0].append(mean)
+        mean_bins[1].append(i*number_of_bins)
+    less_mean_bins[0] = numpy.array()
+    return 0
+    
+def run_simulation(number):
+    results = [[]*number, []*number]
+    for i in range(number):
+        interarrival_times = []
+        arrival_times = []
+        gen = PlaneGen(env)
+        env.process(gen)
+        env.run(until=SIM_TIME)
+        results[0][i] = interarrival_times
+        results[1][i] = arrival_times
+    return 0
+        
 
 """ print(interarrival_times)
 plt.plot(numpy.array(interarrival_times))
 plt.xlabel("Plane Number")
-plt.ylabel("Delay [s]")
+plt.ylabel("Delay [s]") 
 plt.show() """
 
 #print(interarrival_times)
@@ -80,8 +148,6 @@ print("Number of missed calls:",calls["Failures"], "Probability of failure:", 10
 
 """
 Spørsmål:
-1. Gradvis øke expected_delay med hvert fly eller øke det ved døgnskifte?
-2. Hva ønsker dere at vi skal plotte?
-3. Is we big stupid?
+
 
 """
