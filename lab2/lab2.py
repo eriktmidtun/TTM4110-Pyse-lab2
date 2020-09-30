@@ -20,7 +20,7 @@ sInAnHour = 60*60
 interarrival_times = []
 arrival_times = []
 
-def printplot(ymin, ymax, y, ylabel, xlabel, x, xmax):
+def print_regular_plot(ymin, ymax, y, ylabel, xlabel, x, xmax):
     baneform = plt.figure("",figsize=(12,3))
     plt.plot(x,y)
     plt.xticks(numpy.arange(0,xmax+1,1))
@@ -47,11 +47,11 @@ def PlaneGen(env):
         if clock < 5:
             #X_delay_expected += 10
             interarrival_times.append(T_guard) #fix points on the end of day
-            arrival_times.append(env.now / 3600)
+            arrival_times.append(env.now)
             yield env.timeout(5*sInAnHour-clock*sInAnHour) # wait til 05:00
             #fix points on the start of day
             interarrival_times.append(T_guard)
-            arrival_times.append(env.now / 3600)
+            arrival_times.append(env.now)
         plane += 1
         #print("Plane %i arrived at %s" % (plane, datetime.timedelta(seconds = env.now)))
         #Plane(env)
@@ -59,7 +59,7 @@ def PlaneGen(env):
         delay = random.gammavariate(3.0, X_delay_expected) if delayed > P_delay and X_delay_expected > 0 else 0
         planeArrivalTime = max(numpy.random.exponential(getCurrentArrivalIntensity(env.now)),T_guard) + delay
         interarrival_times.append(round(planeArrivalTime, 1))
-        arrival_times.append(env.now / 3600)
+        arrival_times.append(env.now)
         yield env.timeout(int(planeArrivalTime))
 
 
@@ -87,50 +87,58 @@ env.process(gen)
 #start two runaway processes?
 env.run(until=SIM_TIME) """
 
-def calculate_std_dev(results, minTime, maxTime):
+def calculate_statistics(results, minTime, maxTime):
+    # Iterates over the results from the simulation in order to find the proper population to examine
     population = []
     for i in range(len(results)):
-        print(results[1][i])
-        if results[1][i] <= maxTime:
+        # Making the data go in the correct bin regardless of which day it is
+        if results[1][i] % 24*3600 <= maxTime:
             break
-        elif results[1][i] >= minTime:
+        elif results[1][i] % 24*3600 >= minTime:
             population.append(results[0][i])
-    return statistics.pstdev(population)
+    # Returns the mean and population standard deviation for the population
+    return statistics.mean(population), statistics.pstdev(population)
 
-def calculate_mean(results, minTime, maxTime):
-    population = []
-    for i in range(len(results)):
-        if results[1][i] <= maxTime:
-            break
-        elif results[1][i] >= minTime:
-            population.append(results[0][i])
-    return statistics.mean(population)
-
-def calculate_intervals(results, length):
-    number_of_bins = round(24/length)
-    mean_bins = []
-    stdev_bins = []
+def calculate_intervals(results):
+    # We're using 48 buckets as we're creating a new bin every 30 mins.
+    number_of_bins = 48
+    mean = []
+    stddev = []
     for i in range(number_of_bins):
-        stdev_bins.append(calculate_std_dev(results, i*number_of_bins, (i+1)*number_of_bins))
-        mean_bins.append(calculate_mean(results, i*number_of_bins, (i+1)*number_of_bins))
-    less_mean_bins = numpy.array(mean_bins) - numpy.array(stdev_bins)
-    more_mean_bins = numpy.array(mean_bins) + numpy.array(stdev_bins)
-    return mean_bins, less_mean_bins, more_mean_bins
-    
-def run_simulation(number):
-    results = [[], []]
-    for i in range(number):
-        interarrival_times = []
-        arrival_times = []
-        gen = PlaneGen(env)
-        env.process(gen)
-        env.run(until=SIM_TIME)
-        results[0].append(interarrival_times)
-        results[1].append(arrival_times)
-    mean_bins, less_mean_bins, more_mean_bins = calculate_intervals(results, 0.5)
-    print(mean_bins)
-    print(less_mean_bins)
-    print(more_mean_bins)
+        # Find the mean and standard deviation for the current bin and append to the corresponding arrays
+        i_mean, i_std = calculate_statistics(results, 1800*i*number_of_bins, 1800*(i+1)*number_of_bins)
+        mean.append(i_mean)
+        stddev.append(i_std)
+    return mean, stddev
+
+def print_bar_diagram(means, standard_deviations):
+    length = numpy.arange(48)
+    # Labels for all the different bins
+    labels = [
+        '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', 
+        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', 
+        '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
+        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', 
+        '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', 
+        '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30']
+    # The following code should create a bar diagram with error margins. 
+    fig, ax = plt.subplots()
+    ax.bar(length, means, yerr=standard_deviations, align='center', alpha=0.5, ecolor='black', capsize=10)
+    ax.set_ylabel('Mean Inter-arrival Time [s]')
+    ax.set_xticks(length)
+    ax.set_xticklabels(labels)
+    ax.yaxis.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+def run_simulation():
+    # Code has been refactored to remove the loop. The functions should be able to handle more days without problems
+    gen = PlaneGen(env)
+    env.process(gen)
+    env.run(until=SIM_TIME)
+    results = [interarrival_times, arrival_times]
+    mean, stddev = calculate_intervals(results)
+    print_bar_diagram(mean, stddev)
     return 0
         
 
@@ -142,7 +150,7 @@ plt.show() """
 
 #print(interarrival_times)
 #printplot(60, max(interarrival_times)+50, interarrival_times, "Interarrival Time [s]", "Hour", arrival_times, SIM_TIME/3600)
-run_simulation(1)
+run_simulation()
 
 """
 Spørsmål:
