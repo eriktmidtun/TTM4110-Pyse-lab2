@@ -11,12 +11,32 @@ env = sim.Environment()
 # Arrival intensity
 # time                  = [0,1,2,3,4,5  ,6  ,7  ,8 ,9 ,10,11 ,12 ,13 ,14 ,15,16,17,18,19,20 ,21 ,22 ,23]
 arrivalIntensityIndexed = [0,0,0,0,0,120,120,120,30,30,30,150,150,150,150,30,30,30,30,30,120,120,120,120]
+arrivalIntensityDict = {
+    # 00:00 - 05:00: 0
+    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 
+    # 05:00 - 08:00: 120
+    5: 120, 6: 120, 7: 120,
+    # 08:00 - 11:00: 30
+    8: 30, 9: 30, 10: 30,
+    # 11:00 - 15:00: 150
+    11: 150, 12: 150, 13: 150, 14: 150,
+    # 15:00 - 20:00: 30
+    15: 30, 16: 30, 17: 30, 18: 30, 19: 30,
+    # 20:00 - 00:00: 120
+    20: 120, 21: 120, 22: 120, 23: 120
+}
 
-SIM_TIME = 60*60*24*365
-T_guard = 60 #seconds
-P_delay = 0.5 # probability
+SIM_TIME = 60*60*24
 sInAnHour = 60*60
 
+T_guard = 60 #seconds
+P_delay = 0.5 # probability
+T_landing = 60 # seconds
+T_takeoff = 60 # seconds
+X_turnaround_expected = 45*60 #seconds
+N_runways = 2 # max runways
+
+plane_number = 0
 interarrival_times = []
 arrival_times = []
 
@@ -30,8 +50,7 @@ def getClockCurrentDay(currenttime):
     currentHour = currenttime / sInAnHour
     return currentHour % 24
 
-def PlaneGen(env):
-    plane = 0
+def PlaneGen(env, runways):
     X_delay_expected = 0
     while True:
         clock = getClockCurrentDay(env.now)
@@ -43,15 +62,60 @@ def PlaneGen(env):
             #fix points on the start of day
             interarrival_times.append(T_guard)
             arrival_times.append(env.now)
-        plane += 1
         #print("Plane %i arrived at %s" % (plane, datetime.timedelta(seconds = env.now)))
-        #Plane(env)
         delayed = random.uniform(0.0,1.0)
         delay = random.gammavariate(3.0, X_delay_expected) if delayed > P_delay and X_delay_expected > 0 else 0
+        Plane(env, runways, delay) # should scedule with delay
         planeArrivalTime = max(numpy.random.exponential(getCurrentArrivalIntensity(env.now)),T_guard) + delay
         interarrival_times.append(round(planeArrivalTime, 1))
         arrival_times.append(env.now)
         yield env.timeout(int(planeArrivalTime))
+
+
+class Plane(object):
+    
+    info = []
+    nr = 0
+    
+    def __init__(self, env, runways, delay):
+        self.env = env
+        self.action = env.process(self.run(delay))
+        self.runways = runways
+        Plane.nr += 1
+        self.number = Plane.nr
+
+    
+    def add_info(self, more_info):
+        self.info.append(more_info)
+
+    def run(self, delay):
+        if delay > 0:
+            yield delay
+        #request runway priority 1
+        request_landing = self.runways.request(priority=1) # without pri
+        yield request_landing
+        #yield landing
+        yield self.env.timeout(T_landing)
+        #release runway
+        self.runways.release(request_landing)
+        #landed
+        landed = self.env.now
+        #yield turnaround 
+        turnaround = random.gammavariate(7.0, X_turnaround_expected)
+        yield self.env.timeout(turnaround)
+        #request runway priority 2
+        request_takeoff = self.runways.request(priority=2) # without pri
+        yield request_takeoff
+        #yield takeoff-time
+        yield self.env.timeout(T_takeoff)
+        #release runway
+        self.runways.release(request_takeoff)
+        # left
+        left = self.env.now
+        # report variables
+        self.add_info([self.number, landed, left])
+        
+
 
 
 def calculate_statistics(results, minTime, maxTime):
@@ -111,17 +175,25 @@ def print_bar_diagram(means, standard_deviations):
 
 def run_simulation():
     # Code has been refactored to remove the loop. The functions should be able to handle more days without problems
-    gen = PlaneGen(env)
+    runways = sim.PriorityResource(env,capacity = N_runways)
+    gen = PlaneGen(env,runways)
     env.process(gen)
     env.run(until=SIM_TIME)
-    results = [interarrival_times, arrival_times]
+    """ results = [interarrival_times, arrival_times]
     mean, stddev = calculate_intervals(results)
-    print_bar_diagram(mean, stddev)
+    print_bar_diagram(mean, stddev) """
+    print(Plane.info)
     return 0
         
 
 
 
+#print(interarrival_times)
 
 run_simulation()
+# print_regular_plot(60, max(interarrival_times)+50, interarrival_times, "Interarrival Time [s]", "Hour", numpy.array(arrival_times)/3600, SIM_TIME/3600)
+"""
+Spørsmål:
 
+
+"""
