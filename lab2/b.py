@@ -11,20 +11,6 @@ env = sim.Environment()
 # Arrival intensity
 # time                  = [0,1,2,3,4,5  ,6  ,7  ,8 ,9 ,10,11 ,12 ,13 ,14 ,15,16,17,18,19,20 ,21 ,22 ,23]
 arrivalIntensityIndexed = [0,0,0,0,0,120,120,120,30,30,30,150,150,150,150,30,30,30,30,30,120,120,120,120]
-arrivalIntensityDict = {
-    # 00:00 - 05:00: 0
-    0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 
-    # 05:00 - 08:00: 120
-    5: 120, 6: 120, 7: 120,
-    # 08:00 - 11:00: 30
-    8: 30, 9: 30, 10: 30,
-    # 11:00 - 15:00: 150
-    11: 150, 12: 150, 13: 150, 14: 150,
-    # 15:00 - 20:00: 30
-    15: 30, 16: 30, 17: 30, 18: 30, 19: 30,
-    # 20:00 - 00:00: 120
-    20: 120, 21: 120, 22: 120, 23: 120
-}
 
 SIM_TIME = 60*60*24
 sInAnHour = 60*60
@@ -92,7 +78,7 @@ class Plane(object):
         if delay > 0:
             yield delay
         #request runway priority 1
-        request_landing = self.runways.request(priority=1) # without pri
+        request_landing = self.runways.request(priority=1)
         yield request_landing
         #yield landing
         yield self.env.timeout(T_landing)
@@ -104,7 +90,7 @@ class Plane(object):
         turnaround = random.gammavariate(7.0, X_turnaround_expected)
         yield self.env.timeout(turnaround)
         #request runway priority 2
-        request_takeoff = self.runways.request(priority=2) # without pri
+        request_takeoff = self.runways.request(priority=2)
         yield request_takeoff
         #yield takeoff-time
         yield self.env.timeout(T_takeoff)
@@ -115,8 +101,6 @@ class Plane(object):
         # report variables
         self.add_info([self.number, landed, left])
         
-
-
 
 def calculate_statistics(results, minTime, maxTime):
     # Iterates over the results from the simulation in order to find the proper population to examine
@@ -146,16 +130,9 @@ def calculate_intervals(results):
         stddev.append(i_std)
     return mean, stddev
 
-def print_bar_diagram(means, standard_deviations):
+def print_bar_diagram(means, standard_deviations, ylabel):
     length = numpy.arange(24)
     # Labels for all the different bins
-    labels = [
-        '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', 
-        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', 
-        '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
-        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', 
-        '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', 
-        '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30']
     labels = [
         '00:00', '01:00', '02:00','03:00', 
         '04:00', '05:00', '06:00','07:00', 
@@ -166,7 +143,7 @@ def print_bar_diagram(means, standard_deviations):
     # The following code should create a bar diagram with error margins.
     fig, ax = plt.subplots()
     ax.bar(length, means, yerr=standard_deviations, align='center', alpha=0.5, ecolor='black', capsize=10)
-    ax.set_ylabel('Mean Inter-arrival Time [s]')
+    ax.set_ylabel(ylabel)
     ax.set_xticks(length)
     ax.set_xticklabels(labels)
     ax.yaxis.grid(True)
@@ -181,12 +158,9 @@ def run_simulation():
     env.run(until=SIM_TIME)
     """ results = [interarrival_times, arrival_times]
     mean, stddev = calculate_intervals(results)
-    print_bar_diagram(mean, stddev) """
+    print_bar_diagram(mean, stddev, 'Time between arrival and landing [s]') """
     print(Plane.info)
     return 0
-        
-
-
 
 #print(interarrival_times)
 

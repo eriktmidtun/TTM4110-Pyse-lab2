@@ -151,7 +151,6 @@ def run_simulation():
     mean, stddev = calculate_intervals(results)
     print_bar_diagram(mean, stddev)
     return 0
-        
 
 
 
