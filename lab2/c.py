@@ -79,39 +79,38 @@ class Plane(object):
         self.info.append(more_info)
 
     def run(self, delay):
+        # Timestamp and hold delay
+        arrival_finished = self.env.now
         if delay > 0:
             yield delay
-        # request runway priority 1
+        
+        # Initiate landing-sequence and timestamp at end
         request_landing = self.runways.request(priority=1)
         yield request_landing
-        # yield landing
         yield self.env.timeout(T_landing)
-        # release runway
         self.runways.release(request_landing)
-        # landed
-        landed = self.env.now
+        landing_finished = self.env.now
 
-        # Turn around
+        # Initiate turn_around-sequence and timestamp at end
         turnaround = random.gammavariate(7.0, X_turnaround_expected)
         yield self.env.timeout(turnaround)
-
-        # Deice
+        turn_around_finished = self.env.now
+        
+        # Initiate deice-sequence and timestamp at end
         request_deicing = Plane.deicing_trucks.request()
         yield request_deicing
         Plane.deicing_trucks.release(request_deicing)
+        deicing_finished = self.env.now
 
-        # Request takeoff
+        # Initiate take_off-sequence and timestamp at end
         request_takeoff = self.runways.request(priority=2)
         yield request_takeoff
-        # yield takeoff-time
         yield self.env.timeout(T_takeoff)
-        # release runway
         self.runways.release(request_takeoff)
-        # left
-        left = self.env.now
-        # report variables
-        self.add_info([self.number, landed, left])
-
+        take_off_finished = self.env.now
+        
+        # Report variables
+        self.add_info([self.number, arrival_finished, landing_finished, turn_around_finished, deicing_finished, take_off_finished])
 
 def calculate_statistics(results, minTime, maxTime):
     # Iterates over the results from the simulation in order to find the proper population to examine
