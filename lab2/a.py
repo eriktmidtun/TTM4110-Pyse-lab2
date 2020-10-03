@@ -12,7 +12,7 @@ env = sim.Environment()
 # time                  = [0,1,2,3,4,5  ,6  ,7  ,8 ,9 ,10,11 ,12 ,13 ,14 ,15,16,17,18,19,20 ,21 ,22 ,23]
 arrivalIntensityIndexed = numpy.array([0,0,0,0,0,120,120,120,30,30,30,150,150,150,150,30,30,30,30,30,120,120,120,120])*0.5
 
-SIM_TIME = 60*60*24*365
+SIM_TIME = 60*60*24
 T_guard = 60 #seconds
 P_delay = 0.5 # probability
 sInAnHour = 60*60
@@ -176,6 +176,7 @@ def multiplot(x_values, y_values, labels, x_label, y_label, title):
     for ax in axs.flat:
         ax.set(ylabel=y_label)
 
+    plt.suptitle(title, fontsize=25)
     plt.show()#savefig("lab2/plots/allplots.png", dpi=500)
 
 def multiplot_bar(means, stds, labels, x_label, y_label, title):
@@ -194,6 +195,7 @@ def multiplot_bar(means, stds, labels, x_label, y_label, title):
     for ax in axs.flat:
         ax.set(ylabel=y_label)
 
+    plt.suptitle(title, fontsize=25)
     plt.show()#savefig("lab2/plots/allplots.png", dpi=500)
 #print(interarrival_times)
 
