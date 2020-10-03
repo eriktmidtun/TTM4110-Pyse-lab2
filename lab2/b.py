@@ -21,7 +21,7 @@ P_delay = 0.5  # probability
 T_landing = 60  # seconds
 T_takeoff = 60  # seconds
 X_turnaround_expected = 45*60  # seconds
-N_runways = 2  # max runways
+N_runways = 1  # max runways
 
 plane_number = 0
 interarrival_times = []
@@ -32,30 +32,27 @@ def getCurrentArrivalIntensity(currenttime):
     clockCurrentDay = getClockCurrentDay(currenttime)
     return arrivalIntensityIndexed[int(clockCurrentDay)]
 
-
 def getClockCurrentDay(currenttime):
     # currenttime is in seconds
     currentHour = currenttime / sInAnHour
     return currentHour % 24
 
-
 def PlaneGen(env, X_delay_expected, runways):
     while True:
         clock = getClockCurrentDay(env.now)
         if clock < 5:
-            yield env.timeout(5*sInAnHour-clock*sInAnHour)  # wait til 05:00
+            yield env.timeout(5*sInAnHour-clock*sInAnHour +1)  # wait til 05:00
             # fix points on the start of day
         #print("Plane %i arrived at %s" % (plane, datetime.timedelta(seconds = env.now)))
         delayed = random.random()
         delay = random.gammavariate(
-            3.0, X_delay_expected) if delayed > P_delay and X_delay_expected > 0 else 0
+            3.0, X_delay_expected) if delayed <= P_delay and X_delay_expected > 0 else 0
         planeArrivalTime = max(numpy.random.exponential(
             getCurrentArrivalIntensity(env.now)), T_guard)
         interarrival_times.append(round(planeArrivalTime+delay, 1))
         arrival_times.append(env.now)
         Plane(env, runways, delay)  # should scedule with delay
         yield env.timeout(int(planeArrivalTime))
-
 
 class Plane(object):
 
@@ -111,27 +108,23 @@ class Plane(object):
                        "take_off_time": take_off_finished - turn_around_finished
                        })
 
-
 def calculate_statistics(results, minTime, maxTime, xkey, ykey):
     # Iterates over the results from the simulation in order to find the proper population to examine
     population = []
+    population.clear()
     # print("Min:", minTime, "Max:", maxTime)
     for dictionary in results:
         # Making the data go in the correct bin regardless of which day it is
-        if getClockCurrentDay(dictionary[xkey])*3600 >= minTime and getClockCurrentDay(dictionary[xkey])*3600 < maxTime:
+        if getClockCurrentDay(dictionary[xkey])*3600 >= minTime and getClockCurrentDay(dictionary[xkey])*3600 < maxTime:          
             population.append(dictionary[ykey])
-            # print(results[0][i])
     # Returns the mean and population standard deviation for the population
-    if len(population) < 1 or minTime == 0:
-        return 0, 0
     return statistics.mean(population), statistics.pstdev(population)
-
 
 def calculate_intervals(results, xkey, ykey):
     number_of_bins = 24
-    mean = []
-    stddev = []
-    for i in range(number_of_bins):
+    mean = [0]*5
+    stddev = [0]*5
+    for i in range(5, number_of_bins):
         # Find the mean and standard deviation for the current bin and append to the corresponding arrays
         i_mean, i_std = calculate_statistics(
             results, 3600*i, 3600*(i+1), xkey, ykey)
@@ -139,34 +132,7 @@ def calculate_intervals(results, xkey, ykey):
         stddev.append(i_std)
     return mean, stddev
 
-
-def print_bar_diagram(means, standard_deviations, ylabel, figureName):
-    length = numpy.arange(24)
-    # Labels for all the different bins
-    labels = [
-        '00:00', '01:00', '02:00', '03:00',
-        '04:00', '05:00', '06:00', '07:00',
-        '08:00', '09:00', '10:00', '11:00',
-        '12:00', '13:00', '14:00', '15:00',
-        '16:00', '17:00', '18:00', '19:00',
-        '20:00', '21:00', '22:00', '23:00']
-    # The following code should create a bar diagram with error margins.
-    fig, ax = plt.subplots(figsize=(20, 10))
-    ax.bar(length, means, yerr=standard_deviations,
-           align='center', alpha=0.5, ecolor='black', capsize=10)
-    ax.set_ylabel(ylabel)
-    ax.set_xticks(length)
-    ax.set_xticklabels(labels)
-    ax.yaxis.grid(True)
-    # plt.tight_layout()
-    #plt.savefig("lab2/plots/" + figureName + ".png", dpi=500)
-    plt.show()
-
-
 def run_simulation():
-    x_values = []
-    y_values_landing = []
-    y_values_takeoff = []
     means_landing = []
     stds_landing = []
     means_takeoff = []
@@ -187,12 +153,14 @@ def run_simulation():
         # Create entities
         gen = PlaneGen(env, 0, runways)
         env.process(gen)
+        print("run", i, "\n")
 
         # Run the simulation until the given time
         env.run(until=SIM_TIME)
         # The results we want to examine er in Plane.info and we clear the array to make sure that it doesn't mess up the next iteration
         results = Plane.info.copy()
         Plane.info.clear()
+        Plane.nr = 0
         # Calculates the needed statistics in order to print barchart of landing
         xkey = "arrival"
         ykey = "landing_time"
@@ -204,89 +172,15 @@ def run_simulation():
         mean_takeoff, stddev_takeoff = calculate_intervals(results, xkey, ykey)
         means_takeoff.append(mean_takeoff)
         stds_takeoff.append(stddev_takeoff)
+        results.clear()
 
     multiplot_bar(means_landing, stds_landing, labels, "Arrival time",
-                  "Time between arrival and landing [s]", "Time between arrival and landing with P(delay) = {P_delay}".format(P_delay = P_delay))
+                  "Time between arrival and landing [s]", "Time between arrival and landing with P(delay) = {P_delay}".format(P_delay = P_delay), "arrival-landing-10R")
     multiplot_bar(means_takeoff, stds_takeoff, labels, "Arrival time",
-                  "Time between turn around and takeoff [s]", "Time between turn around and takeoff with P(delay) = {P_delay}".format(P_delay = P_delay))
+                  "Time between turn around and takeoff [s]", "Time between turn around and takeoff with P(delay) = {P_delay}".format(P_delay = P_delay), "TA-takeoff-10R")
     return 0
 
-
-def calculate_statistics1(results, minTime, maxTime):
-    # Iterates over the results from the simulation in order to find the proper population to examine
-    population = []
-    # print("Min:", minTime, "Max:", maxTime)
-    for i in range(len(results[1])):
-        # Making the data go in the correct bin regardless of which day it is
-        if getClockCurrentDay(results[1][i])*3600 >= maxTime:
-            break
-        elif getClockCurrentDay(results[1][i])*3600 >= minTime:
-            population.append(results[0][i])
-            # print(results[0][i])
-    # Returns the mean and population standard deviation for the population
-    if len(population) < 1 or minTime == 0:
-        return 0, 0
-    return statistics.mean(population), statistics.pstdev(population)
-
-
-def calculate_intervals1(results):
-    # We're using 48 buckets as we're creating a new bin every 30 mins.
-    number_of_bins = 24
-    mean = []
-    stddev = []
-    for i in range(number_of_bins):
-        # Find the mean and standard deviation for the current bin and append to the corresponding arrays
-        i_mean, i_std = calculate_statistics1(results, 3600*i, 3600*(i+1))
-        mean.append(i_mean)
-        stddev.append(i_std)
-    return mean, stddev
-
-# print(interarrival_times)
-
-
-def print_bar_diagram1(means, standard_deviations):
-    length = numpy.arange(24)
-    # Labels for all the different bins
-    labels = [
-        '00:00', '01:00', '02:00', '03:00',
-        '04:00', '05:00', '06:00', '07:00',
-        '08:00', '09:00', '10:00', '11:00',
-        '12:00', '13:00', '14:00', '15:00',
-        '16:00', '17:00', '18:00', '19:00',
-        '20:00', '21:00', '22:00', '23:00']
-    # The following code should create a bar diagram with error margins.
-    fig, ax = plt.subplots(figsize=(20, 10))
-    ax.bar(length, means, yerr=standard_deviations,
-           align='center', alpha=0.5, ecolor='black', capsize=10)
-    ax.set_ylabel('Mean Inter-arrival Time [s]')
-    ax.set_xticks(length)
-    ax.set_xticklabels(labels)
-    ax.yaxis.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-def multiplot(x_values, y_values, labels, x_label, y_label, title):
-    colors = ["b", "g", "r", "c", "m", "y"]
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
-    for row in axs:
-        for col in row:
-            col.set_xticks(numpy.arange(5, 24, 1))
-
-    for i in range(2):
-        for j in range(2):
-            axs[i, j].plot(getClockCurrentDay(numpy.array(
-                x_values[2*i+j])), y_values[2*i+j], color=colors[2*i+j])
-            axs[i, j].set_title(labels[2*i+j])
-
-    for ax in axs.flat:
-        ax.set(ylabel=y_label)
-
-    plt.suptitle(title, fontsize=25)
-    plt.show()  # savefig("lab2/plots/allplots.png", dpi=500)
-
-
-def multiplot_bar(means, stds, labels, x_label, y_label, title):
+def multiplot_bar(means, stds, labels, x_label, y_label, title, filename):
     length = numpy.arange(24)
     colors = ["b", "g", "r", "c", "m", "y"]
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 10))
@@ -304,14 +198,7 @@ def multiplot_bar(means, stds, labels, x_label, y_label, title):
         ax.set(ylabel=y_label)
 
     plt.suptitle(title, fontsize=25)
-    plt.show()  # savefig("lab2/plots/allplots.png", dpi=500)
-# print(interarrival_times)
+    plt.savefig("lab2/plots/" + filename + ".png", dpi=500)
 
 
 run_simulation()
-# print_regular_plot(60, max(interarrival_times)+50, interarrival_times, "Interarrival Time [s]", "Hour", numpy.array(arrival_times)/3600, SIM_TIME/3600)
-"""
-Spørsmål:
-
-
-"""
