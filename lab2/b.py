@@ -156,16 +156,16 @@ def print_bar_diagram(means, standard_deviations, ylabel, figureName):
         '16:00', '17:00', '18:00', '19:00',
         '20:00', '21:00', '22:00', '23:00']
     # The following code should create a bar diagram with error margins.
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(20,10))
     ax.bar(length, means, yerr=standard_deviations,
            align='center', alpha=0.5, ecolor='black', capsize=10)
     ax.set_ylabel(ylabel)
     ax.set_xticks(length)
     ax.set_xticklabels(labels)
     ax.yaxis.grid(True)
-    plt.tight_layout()
-    #plt.savefig("./plots/" + figureName + ".png")
-    plt.show()
+    #plt.tight_layout()
+    plt.savefig("lab2/plots/" + figureName + ".png", dpi=500)
+    #plt.show()
 
 
 def run_simulation():
@@ -189,8 +189,8 @@ def run_simulation():
     # Print barchart of time spent on takeoff
     ykey = "take_off_time"
     mean, stddev = calculate_intervals(results, xkey, ykey)
-    print_bar_diagram(
-        mean, stddev, 'Time spent take-off [s]', 'time_take-off')
+    #print_bar_diagram(
+    #   mean, stddev, 'Time spent take-off [s]', 'time_take-off')
     return 0
 
 # print(interarrival_times)
