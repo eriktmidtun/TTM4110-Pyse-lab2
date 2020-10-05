@@ -4,6 +4,7 @@ import random
 import datetime
 import statistics
 from matplotlib import pyplot as plt
+import time
 
 env = sim.Environment()
 
@@ -12,12 +13,12 @@ env = sim.Environment()
 # time                  = [0,1,2,3,4,5  ,6  ,7  ,8 ,9 ,10,11 ,12 ,13 ,14 ,15,16,17,18,19,20 ,21 ,22 ,23]
 arrivalIntensityIndexed = [0, 0, 0, 0, 0, 120, 120, 120, 30, 30,
                            30, 150, 150, 150, 150, 30, 30, 30, 30, 30, 120, 120, 120, 120]
-
-SIM_TIME = 60*60*24*30
+DAYS = 30
+SIM_TIME = 60*60*24*DAYS
 sInAnHour = 60*60
 
 T_guard = 60  # seconds
-P_delay = 0.5  # probability
+P_delay = 0.75  # probability
 T_landing = 60  # seconds
 T_takeoff = 60  # seconds
 X_turnaround_expected = 45*60  # seconds
@@ -26,7 +27,6 @@ N_runways = 1  # max runways
 plane_number = 0
 interarrival_times = []
 arrival_times = []
-
 
 def getCurrentArrivalIntensity(currenttime):
     clockCurrentDay = getClockCurrentDay(currenttime)
@@ -46,7 +46,7 @@ def PlaneGen(env, X_delay_expected, runways):
         #print("Plane %i arrived at %s" % (plane, datetime.timedelta(seconds = env.now)))
         delayed = random.random()
         delay = random.gammavariate(
-            3.0, X_delay_expected) if delayed <= P_delay and X_delay_expected > 0 else 0
+            3.0, X_delay_expected/3) if delayed <= P_delay and X_delay_expected > 0 else 0
         planeArrivalTime = max(numpy.random.exponential(
             getCurrentArrivalIntensity(env.now)), T_guard)
         interarrival_times.append(round(planeArrivalTime+delay, 1))
@@ -71,10 +71,11 @@ class Plane(object):
 
     def run(self, delay):
         # Timestamp and hold delay
-        arrival_finished = self.env.now
+        scheduled_arrival = self.env.now
         if delay > 0:
-            yield delay
-        delay_finished = self.env.now
+            yield self.env.timeout(delay)
+        
+        arrival_finished = self.env.now
 
         # Initiate landing-sequence and timestamp at end
         request_landing = self.runways.request(priority=1)
@@ -84,7 +85,8 @@ class Plane(object):
         landing_finished = self.env.now
 
         # Initiate turn_around-sequence and timestamp at end
-        turnaround = random.gammavariate(7.0, X_turnaround_expected)
+        turnaround = random.gammavariate(7.0, X_turnaround_expected/7)
+        # print("\nturnaround:",turnaround/60,"\n")
         yield self.env.timeout(turnaround)
         turn_around_finished = self.env.now
 
@@ -97,16 +99,19 @@ class Plane(object):
 
         # Report variables
         self.add_info({"number": self.number,
+                       "schedule": scheduled_arrival,
                        "arrival": arrival_finished,
-                       "delay_finished": delay_finished,
-                       "delay_time": delay_finished - arrival_finished,
+                       "delay": arrival_finished - scheduled_arrival,
                        "landing_finished": landing_finished,
                        "landing_time": landing_finished - arrival_finished,
                        "turn_around_finished": turn_around_finished,
                        "turn_around_time": turn_around_finished - landing_finished,
                        "take_off_finished": take_off_finished,
-                       "take_off_time": take_off_finished - turn_around_finished
+                       "take_off_time": take_off_finished - turn_around_finished,
+                       "airport_time": take_off_finished - arrival_finished
                        })
+        
+        
 
 def calculate_statistics(results, minTime, maxTime, xkey, ykey):
     # Iterates over the results from the simulation in order to find the proper population to examine
@@ -118,6 +123,8 @@ def calculate_statistics(results, minTime, maxTime, xkey, ykey):
         if getClockCurrentDay(dictionary[xkey])*3600 >= minTime and getClockCurrentDay(dictionary[xkey])*3600 < maxTime:          
             population.append(dictionary[ykey])
     # Returns the mean and population standard deviation for the population
+    if len(population) == 0:
+        return 0,0
     return statistics.mean(population), statistics.pstdev(population)
 
 def calculate_intervals(results, xkey, ykey):
@@ -133,11 +140,14 @@ def calculate_intervals(results, xkey, ykey):
     return mean, stddev
 
 def run_simulation():
+    start_time = time.time()
     means_landing = []
     stds_landing = []
     means_takeoff = []
     stds_takeoff = []
-    delays = [0, 10, 30, 60]
+    means_airport = []
+    stds_airport = []
+    delays = [0, 300, 600, 1800 ]
     labels = [
         "μ_delay = {delay} s".format(delay=delays[0]),
         "μ_delay = {delay} s".format(delay=delays[1]),
@@ -146,14 +156,15 @@ def run_simulation():
 
     for i in range(4):
         # Creating the enviroment/ Resetting the enviroment for multiple runs
+        start_time_one_sim = time.time()
         env = sim.Environment()
         # Create resources
         runways = sim.PriorityResource(env, capacity=N_runways)
 
         # Create entities
-        gen = PlaneGen(env, 0, runways)
+        gen = PlaneGen(env, delays[i], runways)
         env.process(gen)
-        print("run", i, "\n")
+        print("starting run", i, "\n")
 
         # Run the simulation until the given time
         env.run(until=SIM_TIME)
@@ -172,12 +183,18 @@ def run_simulation():
         mean_takeoff, stddev_takeoff = calculate_intervals(results, xkey, ykey)
         means_takeoff.append(mean_takeoff)
         stds_takeoff.append(stddev_takeoff)
+        # Calculates the needed statistics in order to print barchart of airport
+        ykey = "airport_time"
+        mean_airport, stddev_airport = calculate_intervals(results, xkey, ykey)
+        means_airport.append(getClockCurrentDay(numpy.array(mean_airport))*60)
+        stds_airport.append(getClockCurrentDay(numpy.array(stddev_airport))*60)
         results.clear()
-
-    multiplot_bar(means_landing, stds_landing, labels, "Arrival time",
-                  "Time between arrival and landing [s]", "Time between arrival and landing with P(delay) = {P_delay}".format(P_delay = P_delay), "arrival-landing-10R")
-    multiplot_bar(means_takeoff, stds_takeoff, labels, "Arrival time",
-                  "Time between turn around and takeoff [s]", "Time between turn around and takeoff with P(delay) = {P_delay}".format(P_delay = P_delay), "TA-takeoff-10R")
+        print("---run %i took %s seconds ---" % (i, time.time() - start_time_one_sim))
+        
+    print("--- %s seconds ---" % (time.time() - start_time))
+    multiplot_bar(means_airport, stds_airport, labels, "Arrival time", "Time between arrival and takeoff [minutes]", "Time between arrival and takeoff with P(delay) = {P_delay} , {rw} runways".format(P_delay = P_delay, rw = N_runways), "arrival-takeoff-{delayP}-{rw}R-{d}-new2".format(delayP = round(100*P_delay), rw = N_runways, d = DAYS))
+    multiplot_bar(means_landing, stds_landing, labels, "Arrival time", "Time between arrival and landing [s]", "Time between arrival and landing with P(delay) = {P_delay} , {rw} runways".format(P_delay = P_delay, rw = N_runways), "arrival-landing-{delayP}-{rw}R-{d}-new2".format(delayP = round(100*P_delay), rw = N_runways, d = DAYS))
+    multiplot_bar(means_takeoff, stds_takeoff, labels, "Arrival time", "Time between turn around and takeoff [s]", "Time between turn around and takeoff with P(delay) = {P_delay} , {rw} runways".format(P_delay = P_delay, rw = N_runways), "TA-takeoff-{delayP}-{rw}R-{d}-new2".format(delayP = round(100*P_delay), rw = N_runways, d = DAYS))
     return 0
 
 def multiplot_bar(means, stds, labels, x_label, y_label, title, filename):
