@@ -1,8 +1,10 @@
 # TTM4110-Pyse-lab2
 
-sim files need simula
+## Final score: 95/100
 
-The lab files is in the folder lab2. Other files are just examples.
+sim files need simula and a simula compiler. We did not use it for this lab, only as implementation examples.
+
+The python lab files is in the folder lab2. Other files are just examples.
 TTM4110_labs-2.pdf is the lab task. model.png is the model we implemented.
 
 Python files needs pip packages:
